@@ -7,7 +7,7 @@ start_knit = proc.time()
 
 ## -----------------------------------------------------------------------------
 library(clustra)
-mc = 1 # If running on a unix or a Mac platform, change to number of cores
+mc = 1 # If running on a unix or a Mac platform, increase up to 2x # cores
 set.seed(12345)
 data = gen_traj_data(n_id = c(400, 800, 1600), m_obs = 25, 
                      s_range = c(-365, -14), e_range = c(0.5*365, 2*365),
@@ -21,7 +21,8 @@ ggplot(data[id %in% sample(unique(data[, id]), 9)],
 
 ## -----------------------------------------------------------------------------
 set.seed(1234737)
-cl = clustra(data, k = 3, maxdf = 30, iter = 10, mccores = mc, verbose = TRUE)
+cl = clustra(data, k = 3, maxdf = 30, conv = c(10, 0), mccores = mc,
+             verbose = TRUE)
 
 ## ----fig.width = 7, fig.height = 7--------------------------------------------
 sdt = data
@@ -57,7 +58,7 @@ iplot = sample(unique(data2$id), 9)
 sampobs = match(data2$id, iplot, nomatch = 0) > 0
 ggplot(data2[sampobs], aes(x = time, y = response)) + 
   facet_wrap(~ id) + geom_point()
-cl = clustra(data2, k = 3, maxdf = 30, iter = 10, mccores = mc, verbose = TRUE)
+cl = clustra(data2, k = 3, maxdf = 30, conv = c(10, 0), mccores = mc, verbose = TRUE)
 MixSim::RandIndex(cl$data_group, data2[, true_group])
 
 ## ----fig.width = 7, fig.height = 7--------------------------------------------
@@ -85,7 +86,8 @@ ggplot(pdata, aes(x = time, y = pred, color = group)) +
 
 ## ----fig.width = 7------------------------------------------------------------
 set.seed(1234737)
-sil = clustra_sil(data, k = c(2, 3, 4), mccores = mc, iter = 7, verbose = TRUE)
+sil = clustra_sil(data, k = c(2, 3, 4), mccores = mc, conv = c(7, 1),
+                  verbose = TRUE)
 plot_sil = function(x) {
   msil = round(mean(x$silhouette), 2)
   ggplot(x, aes(id, silhouette, color = cluster, fill = cluster)) + geom_col() +
@@ -95,15 +97,20 @@ plot_sil = function(x) {
 }
 lapply(sil, plot_sil)
 
+## ----fig.width = 7------------------------------------------------------------
+sil = clustra_sil(cl)
+lapply(sil, plot_sil)
+
 ## ----fig.width = 7, fig.height=7----------------------------------------------
 set.seed(1234737)
 ran = clustra_rand(data, k = c(2, 3, 4), mccores = mc, replicates = 10,
-                   iter = 7, verbose = TRUE)
+                   conv = c(7, 1), verbose = TRUE)
 rand_plot(ran)
 
 ## ----fig.width = 7, fig.height = 7--------------------------------------------
 set.seed(12347)
-cl = clustra(data2, k = 40, maxdf = 30, iter = 10, mccores = mc, verbose = TRUE)
+cl = clustra(data2, k = 40, maxdf = 30, conv = c(10, 0), mccores = mc,
+             verbose = TRUE)
 gpred = function(tps, newdata) 
   as.numeric(mgcv::predict.bam(tps, newdata, type = "response",
                                newdata.guaranteed = TRUE))
