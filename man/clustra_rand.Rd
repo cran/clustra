@@ -7,7 +7,8 @@
 clustra_rand(
   data,
   k,
-  mccores,
+  starts = "random",
+  mccores = 1,
   replicates = 10,
   maxdf = 30,
   conv = c(10, 0),
@@ -20,6 +21,8 @@ clustra_rand(
 
 \item{k}{Vector of k values to try.}
 
+\item{starts}{See \code{\link{clustra}}.}
+
 \item{mccores}{Number of cores for replicate parallelism via mclapply.}
 
 \item{replicates}{Number of replicates for each k.}
@@ -30,7 +33,8 @@ clustra_rand(
 
 \item{save}{Logical. When TRUE, save all results as file \code{results.Rdata}.}
 
-\item{verbose}{Logical. When TRUE, information about each run of clustra is printed.}
+\item{verbose}{Logical. When TRUE, information about each run of clustra (but not iterations
+within) is printed.}
 }
 \value{
 See \code{\link{allpair_RandIndex}}.

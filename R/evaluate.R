@@ -1,3 +1,98 @@
+#' Function to test information criteria. Not exported and used by internal
+#' function `kchoose`.
+#' 
+#' @param cl 
+#' Output from `clustra` function.
+#' @param data 
+#' A valid data set for `clustra`.
+#' @param fn
+#' Character file name for output.
+#' 
+#' @return
+#' Numerical value of computed AIC. Also writes a line of computed information 
+#' criteria to `fn` file for each k.
+#' 
+ic_fun = function(cl, data, fn) {
+  group = NULL # for data.table R CMD check
+  
+  k = length(cl$tps)
+  N = sum(cl$counts_df)
+  
+  aic = unlist(lapply(cl$tps, function(x) x$aic))
+  deviance = sum(unlist(lapply(cl$tps, function(x) x$deviance)))
+  ssq = sum(unlist(lapply(1:k, m = cl$tps, function(i, m) 
+     sum((predict(m[[i]], data[group == i]) - data[group == i]$response)^2))))
+  df.null = unlist(lapply(cl$tps, function(x) x$df.null))
+  df.residual = unlist(lapply(cl$tps, function(x) x$df.residual))
+  edf = unlist(lapply(cl$tps, function(x) sum(x$edf)))
+  AIC = ssq/N + 2*sum(edf) 
+  
+  ## (7.30) in ESL (Hastie & Tibshirani)
+  sig2 = ssq/(N - sum(edf))
+  ## agrees with weighted result from gam/bam of mgcv
+  ##sig2w = sum(cl$counts_df * unlist(lapply(cl$tps, function(x) sum(x$sig2))))/N
+  AICht = ssq/N + 2*(sum(edf)/N)*sig2
+  BIC = ssq/N + log(sum(cl$counts_df))*sum(edf)
+  BICht = (N/sig2)*(ssq/N + log(N)*(sum(edf)/N)*sig2) ## (7.36) in ESL (Hastie & Tibshirani)
+  BICrams = ssq/sig2 + log(N)*(sum(edf))
+  
+  ## Oddly, the standard AIC and BIC seem to work well and the adjusted "ht" 
+  ## and "rams" do not!? Is the standard correct??
+  fmt = "%d %7.0f %6.0f %6.0f %6.0f %6.0f %6.0f %10.0f %10.0f"
+  outline = sprintf(fmt, k, sum(aic), AIC, AICht, BIC, BICht, BICrams, deviance,
+                    ssq)
+  cat(outline, "\n", file = fn, append = TRUE)
+  
+  return(AIC)
+}
+
+#' A test function to evaluate information criteria for several k values. Not
+#' exported and only for debugging internal use.
+#' 
+#' @param K
+#' Integer vector of k values to try.
+#' @param var
+#' A numerical value of noise variance in generated data.
+#' @param maxdf 
+#' Fitting parameters. See \code{\link{trajectories}}.
+#' @param mc 
+#' Number of cores to use. Increase up to largest k, or number of cores 
+#' available, whichever is less. (On hyperthreaded cores, up to 2x number of 
+#' cores.)
+#' @param fn 
+#' Character file name for output.
+#' 
+kchoose = function(K, var = 5, maxdf = 10, mc = 1, fn = "ic.txt") {
+  library(clustra)
+  mc = 4 # If running on a unix or a Mac platform, increase up to 2x # cores
+  init = "distant" # maximize median absolute error for initial traj selection
+  set.seed(12345)
+  data = gen_traj_data(n_id = c( 400, 400, 800, 800, 1600), 
+                       types = c(1, 2, 3, 2, 1),
+                       intercepts = c(100, 80, 120, 60, 70), m_obs = 25, 
+                       s_range = c(-365, -14), e_range = c(0.5*365, 2*365),
+                       noise = c(0, var))
+  cat("k   aic     AIC  AICht   BIC   BICht   BICrams  deviance ssq\n", file = fn)
+  plot_sample(data, layout = c(3,3))
+    
+  for(k in K) {
+    set.seed(1234737)
+    cl = clustra(data, k, starts = init, maxdf = maxdf, conv = c(10, 0), 
+                 mccores = mc, verbose = TRUE)
+    plot_smooths(data, cl$tps)
+    ic_fun(cl, data, fn = fn)
+  }
+  res = data.table::fread(fn)
+  
+  opar = par(mfrow = c(2, 2))
+  on.exit(par(opar))
+  plot(AIC ~ k, data = res, type = "l")
+  plot(BIC ~ k, data = res, type = "l")
+  plot(deviance ~ k, data = res, type = "l")
+  plot(ssq ~ k, data = res, type = "l")
+  invisible(NULL)
+}
+
 #' allpair_RandIndex: helper for replicated cluster comparison
 #' 
 #' Runs \code{\link[MixSim]{RandIndex}} for all pairs of cluster results in its
@@ -11,6 +106,9 @@
 #' * `rep` - replicate number
 #' * `deviance` - final deviance
 #' * `group` - integer cluster assignments
+#' Note that item order is assumed to be the same across all `rep` and `k` but 
+#' `group` numbering need not be same. The algorithm only examines if pairs of
+#' items are in same or different clusters within each `results` list element.
 #' 
 #' @return A data frame with \code{\link[MixSim]{RandIndex}} for all pairs from
 #' trajectories results. The data frame names and its format is intended to be 
@@ -42,109 +140,9 @@ allpair_RandIndex = function(results) {
   }
   ri_df = do.call(rbind, rand_pairs)
   class(ri_df) = c("RandIndex", class(ri_df))
-  ri_df
+  return(ri_df)
 }
 
-#' Matrix plot of Rand Index comparison of replicated clusters
-#' 
-#' @param rand_pairs
-#' A data frame result of \code{\link{allpair_RandIndex}}
-#' @param name 
-#' Character string file name for pdf plot. If omitted or NULL, plot will 
-#' render to current graphics device.
-#'
-#' @return
-#' Invisible. Full path name of file with plot.
-#'
-#' @references
-#' Wei-chen Chen, George Ostrouchov, David Pugmire, Prabhat, and Michael Wehner.
-#' 2013. A Parallel EM Algorithm for Model-Based Clustering Applied to the
-#' Exploration of Large Spatio-Temporal Data. Technometrics, 55:4, 513-523.
-#'
-#' Sorts replicates within cluster K
-#' Assumes K starts from 2
-#' 
-#' @author
-#' Wei-Chen Chen and George Ostrouchov
-#' 
-#' @importFrom 
-#' grDevices colorRampPalette dev.off pdf
-#' @importFrom 
-#' graphics abline axis box image layout par
-#' @export
-rand_plot = function(rand_pairs, name = NULL) {
-  K.vec = unique(unlist(rand_pairs[, c("i.K", "j.K")]))
-  K.max = max(K.vec)
-  K.len = length(K.vec)
-  R.vec = unique(unlist(rand_pairs[, c("i.R", "j.R")]))
-  R.len = length(R.vec)
-  R.max = max(R.vec)
-  n.col = K.len*R.len
-
-  ## axes
-  x = 0:((K.max - 1) * R.max)
-  y = x
-  
-  ## fill square array
-  z = array(NA, c(max(x), max(x)))
-  diag(z) = 1
-  var.z = rand_pairs$adjRand
-  for(i in 1:nrow(rand_pairs)){ # allows non-sequential K values
-    Kbase = function(val) (which(K.vec == val) - 1)*R.max
-    z.i = Kbase(rand_pairs$i.K[i]) + rand_pairs$i.R[i]
-    z.j = Kbase(rand_pairs$j.K[i]) + rand_pairs$j.R[i]
-    z[z.i, z.j] = z[z.j, z.i] = var.z[i]
-  }
-  lim = range(x)
-  zlim = range(c(rand_pairs$adjRand, 1))
-  ## made by colors = brewer.pal(9, "YlOrRd") # removed dependency
-  colors = c("#FFFFCC", "#FFEDA0", "#FED976", "#FEB24C", "#FD8D3C", "#FC4E2A",
-             "#E31A1C", "#BD0026", "#800026")
-  var.col = colorRampPalette(colors)(n.col)
-  
-  ## Reorder within K for vis effect
-  for(i in 1:K.len) { 
-    iv = (i - 1) * R.max + (1:R.max)
-    for(j in R.len:1) { # using later rows for breaking ties in earlier rows
-      ic = (i - 1) * R.max + j
-      id.z = order(z[iv, ic], decreasing = TRUE)
-      tmp.z = z[iv, ]
-      z[iv, ] = tmp.z[id.z,]
-      tmp.z = z[, iv]
-      z[, iv] = tmp.z[, id.z]
-    }
-  }
-
-  bg = "transparent"
-  fg = "black"
-  wd = 6.5
-  ht = 6
-  if(is.character(name)) pdf(name, width = wd, height = ht, bg = bg)
-    oldpar <- par(no.readonly = TRUE)
-    on.exit(par(oldpar)) # restore old par when exit
-    par(bg = bg, fg = fg, col = fg, col.axis = fg, col.lab = fg, col.main = fg,
-        col.sub = fg, fig = c(0, ht/wd, 0, 1),
-        mar = par()$mar + c(0, 1, 0, -0.5))
-    image(x, y, z, zlim, lim, rev(lim), col = var.col, axes = FALSE,
-          xlab = "Number of Clusters", ylab = "Number of Clusters",
-          main = "Adjusted Rand Index")
-    abline(h = (1:K.len) * R.max, lty = 1, col = "black")
-    abline(v = (1:K.len) * R.max, lty = 1, col = "black")
-    axis(1, at = ((0:(K.len - 1)) + 0.5) * R.max, labels = K.vec)
-    axis(2, at = ((0:(K.len - 1)) + 0.5) * R.max, labels = K.vec)
-    box()
-
-    par(bg = bg, fg = fg, col = fg, col.axis = fg, col.lab = fg, col.main = fg,
-        col.sub = fg, mar = c(5, 0, 4, 2), fig = c(ht/wd, 1, 0, .9), new = TRUE)
-    z.label = seq(zlim[1], zlim[2], length = n.col)
-    image(1, z.label, matrix(z.label, nrow = 1), zlim, c(1, 1), zlim,
-          col = var.col, axes = FALSE, xlab = "", ylab = "")
-    axis(4)
-    box()
-  if(is.character(name)) dev.off()
-  layout(1)
-  invisible(name)
-}
 
 #' clustra_sil: Prepare silhouette plot data for several k or for a previous 
 #' clustra run
@@ -157,11 +155,14 @@ rand_plot = function(rand_pairs, name = NULL) {
 #' silhouette plot.
 #' 
 #' @param data
-#' Either a data.frame (`data` parameter of \code{\link{trajectories}}) 
-#' or the output from a `clustra` run. See Details.
-#' @param k
-#' Vector of k values to try. If output from `clustra` is the `data` parameter,
-#' `k` can be left NULL or set to the number of clusters used.
+#' A data.frame (see the `data` parameter of \code{\link{trajectories}}).
+#' Alternatively, the output from a completed `clustra` run can be used, in
+#' which case `kv` is left as `NULL`. See Details.
+#' @param kv
+#' Vector of `clustra` `k` values to run. If `data` is the output from a 
+#' completed `clustra` run, leave `kv` as NULL.
+#' @param starts
+#' See \code{\link{clustra}}.
 #' @param mccores
 #' See \code{\link{trajectories}}.
 #' @param maxdf
@@ -175,19 +176,27 @@ rand_plot = function(rand_pairs, name = NULL) {
 #' 
 #' @details 
 #' When given the raw data as the first parameter (input `data` parameter of
-#' \code{\link{trajectories}}), `k` can also specify a vector of cluster numbers
-#' to run `clustra` and then produce silhouette plots for each of them. 
-#' Alternatively, the input can be the output from a `clustra` run, in which
-#' case data for a single silhouette plot will be made without rerunning 
+#' \code{\link{trajectories}}), `kv` specifies a vector of `k` parameters for 
+#' `clustra` and produces data for silhouette plots of each of them. 
+#' Alternatively, the input can be the output from a single `clustra` run, in
+#' which case data for a single silhouette plot will be made without running 
 #' `clustra`.
 #' 
-#' @return Invisibly returns a list of length `length(k)`, where each element is
+#' @return Invisibly returns a list of length `length(kv)`, where each element is
 #' a matrix with `nrow(data)` rows and three columns `cluster`, `neighbor`, 
-#' `silhouette`. This list of matrices can be used to draw a silhouette plot.
+#' `silhouette`. The matrix in each element of this list can be used to draw a 
+#' silhouette plot. When the input was a completed `clustra` run, the output is a
+#' list with a single element for a single silhouette plot.
 #' 
 #' @export
-clustra_sil = function(data, k = NULL, mccores = 1, maxdf = 30, conv = c(10, 0),
-                       save = FALSE, verbose = FALSE) {
+clustra_sil = function(data, kv = NULL, starts = "random", mccores = 1, 
+                       maxdf = 30, conv = c(10, 0), save = FALSE, 
+                       verbose = FALSE) {
+  
+  ## manage data.table threads
+  old_DTthreads = data.table::getDTthreads()
+  data.table::setDTthreads(1)
+  on.exit(data.table::setDTthreads(old_DTthreads))
 
   sil = function(x) {
     ord = order(x)
@@ -196,21 +205,27 @@ clustra_sil = function(data, k = NULL, mccores = 1, maxdf = 30, conv = c(10, 0),
     s = (x[nk] - x[ck])/max(x[ck], x[nk])
     c(ck, nk, s)
   }
-
-  ## verify data and k agreement
-  if(is.data.frame(data) && is.null(k)) {
-    cat("clustra_sil: error: must specify k \n")
+  
+  ## Save random seed so we have same start for each clustra run
+  if (exists(".Random.seed", .GlobalEnv))
+    seed_sil = .GlobalEnv$.Random.seed
+  else
+    seed_sil = NULL
+  
+  ## verify data and kv agreement
+  if(is.data.frame(data) && is.null(kv)) {
+    cat("clustra_sil: error: must specify kv \n")
     return(NULL)
   } else if(is.matrix(data$loss)) {
-      if(is.null(k)) {
-        k = ncol(data$loss)
-      } else if(k != ncol(data$loss)) {
-        cat("clustra: misspecified k")
+      if(is.null(kv)) {
+        kv = ncol(data$loss)
+      } else if(kv != ncol(data$loss)) {
+        cat("clustra: misspecified kv")
         return()
       }
   } else if(is.data.frame(data)) {
-    if(length(k) < 1) {
-      cat("clustra: misspecified k")
+    if(length(kv) < 1) {
+      cat("clustra: misspecified kv")
       return(NULL)
     }
   } else {
@@ -218,15 +233,16 @@ clustra_sil = function(data, k = NULL, mccores = 1, maxdf = 30, conv = c(10, 0),
     return(NULL)
   }
   
-  results = vector("list", length(k))
+  results = vector("list", length(kv))
   
-  for(j in 1:length(k)) {
-    kj = k[j]
+  for(j in 1:length(kv)) {
+    kj = kv[j]
     a_0 = deltime()
 
     if(is.data.frame(data)) {
-      f = clustra(data, kj, mccores = mccores, maxdf = maxdf, conv = conv,
-                verbose = verbose)
+      if (!is.null(seed_sil)) .GlobalEnv$.Random.seed <- seed_sil
+      f = clustra(data, kj, starts = starts, mccores = mccores, maxdf = maxdf,
+                  conv = conv, verbose = verbose)
     } else {
       f = list(loss = data$loss)
     }
@@ -244,7 +260,7 @@ clustra_sil = function(data, k = NULL, mccores = 1, maxdf = 30, conv = c(10, 0),
   }
   
   ## save object results and parameters
-  if(save) save(results, k, file = "clustra_sil.Rdata")
+  if(save) save(results, kv, file = "clustra_sil.Rdata")
   
   invisible(results)
 }
@@ -263,14 +279,20 @@ clustra_sil = function(data, k = NULL, mccores = 1, maxdf = 30, conv = c(10, 0),
 #' Fitting parameters. See \code{\link{trajectories}}.
 #' 
 #' @return
-#' See return of {\code{\link{trajectories}}}.
+#' See return of \code{\link{trajectories}}.
 #' 
 traj_rep = function(group, data, k, maxdf, conv) {
-  id = ..group = NULL
+  id = ..group = NULL # for data.table R CMD check
   data[, group:=..group[id]] # expand group to all data
-  trajectories(data, k, group, maxdf, conv, 1, verbose = FALSE)
-}
+  o = trajectories(data, k, group, maxdf, conv = conv, mccores = 1,
+                     verbose = FALSE)
 
+  ## reduce output to what's needed downstream (removes big tps and data_group)
+  list(deviance = o$deviance, group = o$group, k = o$k, k_cl = o$k_cl,
+       iterations = o$iterations, counts = o$counts, 
+       counts_df = o$counts_df, changes = o$changes)
+}
+  
 #' clustra_rand: Rand Index cluster evaluation
 #' 
 #' Performs \code{\link{trajectories}} runs for several *k* and several random
@@ -283,6 +305,8 @@ traj_rep = function(group, data, k, maxdf, conv) {
 #' The data (see \code{\link{clustra}} description).
 #' @param k
 #' Vector of k values to try.
+#' @param starts
+#' See \code{\link{clustra}}.
 #' @param mccores
 #' Number of cores for replicate parallelism via mclapply.
 #' @param replicates
@@ -294,14 +318,22 @@ traj_rep = function(group, data, k, maxdf, conv) {
 #' @param save
 #' Logical. When TRUE, save all results as file \code{results.Rdata}.
 #' @param verbose
-#' Logical. When TRUE, information about each run of clustra is printed.
+#' Logical. When TRUE, information about each run of clustra (but not iterations
+#' within) is printed.
 #' 
 #' @return See \code{\link{allpair_RandIndex}}.
 #' 
 #' @export
-clustra_rand = function(data, k, mccores, replicates = 10, maxdf = 30,
-                        conv = c(10, 0), save = FALSE, verbose = FALSE) {
+clustra_rand = function(data, k, starts = "random", mccores = 1, 
+                        replicates = 10, maxdf = 30, conv = c(10, 0), 
+                        save = FALSE, verbose = FALSE) {
   id = .GRP = ..group = NULL # for data.table R CMD check
+  
+  ## manage data.table threads
+  old_DTthreads = data.table::getDTthreads()
+  data.table::setDTthreads(1)
+  on.exit(data.table::setDTthreads(old_DTthreads))
+
   results = vector("list", replicates*length(k))
   
   ## check for required variables in data
@@ -318,32 +350,40 @@ clustra_rand = function(data, k, mccores, replicates = 10, maxdf = 30,
   for(j in 1:length(k)) {
     kj = k[j]
     
-    ## Set starting groups outside parallel section to guarantee reproducibility
-    grp = lapply(rep(kj, replicates), sample.int, size = n_id, replace = TRUE)
-    f = parallel::mclapply(grp, traj_rep, data = data, k = kj, maxdf = maxdf,
-                           conv = conv, mc.cores = mccores)
-    fer = lapply(f, function(f, maxdf, conv)
-      if(!is.null( (er = xit_report(f, maxdf, conv)) )) {
+    ## Set replicate starts outside parallel section for reproducibility.
+    ## Then run replicates in parallel on mccores. Each replicate is a serial
+    ## run of trajectories() with reduced output.
+    grp = lapply(rep(kj, replicates), start_groups, 
+                 data = data, starts = starts, maxdf = maxdf, conv = conv,
+                 mccores = 1, verbose = FALSE)
+    tr_lst = parallel::mclapply(grp, traj_rep, data = data, k = kj, 
+                                maxdf = maxdf, conv = conv, mc.cores = mccores)
+    
+    ## generate exit report for each replicate
+    xit = lapply(tr_lst, function(x, maxdf, conv)
+      if(!is.null( (er = xit_report(x, maxdf, conv)) )) {
         return(er)} else return(NULL), maxdf = maxdf, conv = conv)
+
+    ## package replicates into results for Rand Index computation   
     for(i in 1:replicates) {
       results[[(j - 1)*replicates + i]] = list(k = as.integer(kj), 
                                                rep = as.integer(i),
-                                               deviance = f[[i]]$deviance,
-                                               group = f[[i]]$group)
+                                               deviance = tr_lst[[i]]$deviance,
+                                               group = tr_lst[[i]]$group)
       if(verbose) 
-        cat(kj, i, "iters =", f[[i]]$iterations, "deviance =", f[[i]]$deviance,
-            "xit =", fer[[i]], "counts =", f[[i]]$counts, "changes =",
-            f[[i]]$changes, "\n")
+        cat(kj, i, "iters =", tr_lst[[i]]$iterations, "deviance =", 
+            tr_lst[[i]]$deviance, "xit =", xit[[i]], "counts =", 
+            tr_lst[[i]]$counts, "changes =", tr_lst[[i]]$changes, "\n")
     }
-    rm(f)
+    rm(tr_lst)
     gc()
   }
   
   ## save object results and parameters
   if(save) save(results, k, replicates, file = "clustra_rand.Rdata")
   
-  ## compute and return Rand Index evaluation
+  ## compute and return Rand Index evaluations
   ret = allpair_RandIndex(results)
 
-  ret
+  return(ret)
 }

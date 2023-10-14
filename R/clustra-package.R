@@ -1,18 +1,32 @@
 #' clustra-package
 #' 
-#' Clusters medical trajectories (unequally spaced and unequal lengths) aligned 
-#' by an intervention time. Performs k-means clustering, where each mean is a 
-#' thin plate spline fit to all points in a cluster. Distance is MSE across 
-#' trajectory points to cluster spline. Provides silhouette plots and Adjusted
-#' Rand Index evaluations of the number of clusters. Scales well to large data
-#' with multicore parallelism available to speed computation.
+#' Clusters trajectories (unequally spaced and unequal length time series) on 
+#' a common time axis. Clustering proceeds by an EM algorithm that iterates 
+#' switching between fitting a thin plate spline (TPS) to combined responses 
+#' within each cluster (M-step) and reassigning cluster membership based on the 
+#' nearest fitted TPS (E-step). Initial cluster assignments are random or 
+#' distant trajectories. The fitting is done with the *mgcv* package function 
+#' *bam*, which scales well to very large data sets. Additional parallelism 
+#' available via multicore on unix and mac platforms.
 #' 
 #' @name clustra-package
 #' @docType package
 #' @author George Ostrouchov, David Gagnon, Hanna Gerlovin
 #' @keywords Package
+#' @details
+#' This research is based on data from the Million Veteran Program, Office of 
+#' Research and Development, Veterans Health Administration, and was supported 
+#' by award No.~MVP000. This research used resources from the Knowledge 
+#' Discovery Infrastructure (KDI) at Oak Ridge National Laboratory, which is 
+#' supported by the Office of Science of the US Department of Energy under 
+#' Contract No. DE-AC05-00OR22725.
 #' 
-#' # Import package operators
+#' This research used resources of the Compute and Data Environment 
+#' for Science (CADES) at the Oak Ridge National Laboratory, which is supported 
+#' by the Office of Science of the U.S. Department of Energy under Contract No. 
+#' DE-AC05-00OR22725.
+#' 
 #' @importFrom data.table ":="
 #' 
 NULL
+
