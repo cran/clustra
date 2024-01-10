@@ -1,26 +1,11 @@
-## ----setup, echo = FALSE------------------------------------------------------
+## ----setup--------------------------------------------------------------------
 knitr::opts_knit$set(
   collapse = TRUE,
   comment = "#>"
 )
-cran = list(LibsData = TRUE, plot_true = TRUE, plot_raw = TRUE, run5 = TRUE,
-            run5_v2 = FALSE, iter_plots = TRUE, plot5_side_by_side = FALSE, 
-            fig1 = FALSE, comp_true = FALSE, run10 = FALSE, plot10 = FALSE, 
-            run2 = FALSE, rand2 = FALSE, silplot = FALSE, silplot2 = FALSE, 
-            rand_plot = FALSE, hclust40 = FALSE, SAS_R_data = FALSE, 
-            Rand_SAS_R = FALSE, true_group = FALSE)
-figs = list(LibsData = TRUE, plot_true = FALSE, plot_raw = FALSE, run5 = TRUE,
-            run5_v2 = TRUE, iter_plots = FALSE, plot5_side_by_side = FALSE, 
-            fig1 = TRUE, comp_true = TRUE, run10 = TRUE, plot10 = TRUE, 
-            run2 = TRUE, rand2 = TRUE, silplot = TRUE, silplot2 = FALSE,
-            rand_plot = TRUE, hclust40 = FALSE, SAS_R_data = TRUE, 
-            Rand_SAS_R = TRUE, true_group = TRUE)
-all = list(LibsData = TRUE, plot_true = TRUE, plot_raw = TRUE, run5 = TRUE,
-           run5_v2 = TRUE, iter_plots = TRUE, plot5_side_by_side = TRUE,
-           fig1 = TRUE, comp_true = TRUE, run10 = TRUE, plot10 = TRUE,
-           run2 = TRUE, rand2 = TRUE, silplot = TRUE, silplot2 = TRUE, 
-           rand_plot = TRUE, hclust40 = TRUE, SAS_R_data = TRUE, 
-           Rand_SAS_R = TRUE, true_group = TRUE)
+cran = list(LibsData = TRUE, plot_true = TRUE, plot_raw = TRUE, run5 = TRUE, run5_v2 = FALSE, iter_plots = TRUE, plot5_side_by_side = FALSE, fig1 = FALSE, comp_true = FALSE, run10 = FALSE, plot10 = FALSE, run2 = FALSE, rand2 = FALSE, silplot = FALSE, silplot2 = FALSE, rand_plot = FALSE, hclust40 = FALSE, SAS_R_data = FALSE, Rand_SAS_R = FALSE, true_group = FALSE)
+figs = list(LibsData = TRUE, plot_true = FALSE, plot_raw = FALSE, run5 = TRUE, run5_v2 = TRUE, iter_plots = FALSE, plot5_side_by_side = FALSE, fig1 = TRUE, comp_true = TRUE, run10 = TRUE, plot10 = TRUE, run2 = TRUE, rand2 = TRUE, silplot = TRUE, silplot2 = FALSE, rand_plot = TRUE, hclust40 = FALSE, SAS_R_data = TRUE, Rand_SAS_R = TRUE, true_group = TRUE)
+all = list(LibsData = TRUE, plot_true = TRUE, plot_raw = TRUE, run5 = TRUE, run5_v2 = TRUE, iter_plots = TRUE, plot5_side_by_side = TRUE, fig1 = TRUE, comp_true = TRUE, run10 = TRUE, plot10 = TRUE, run2 = TRUE, rand2 = TRUE, silplot = TRUE, silplot2 = TRUE, rand_plot = TRUE, hclust40 = TRUE, SAS_R_data = TRUE, Rand_SAS_R = TRUE, true_group = TRUE)
 chunk = cran  # chose which version of the vignette to run
 full_data = FALSE # choose if full 80,000 id data or sample of 10,000 ids
 mc = 2
@@ -110,7 +95,7 @@ clustra(data, k = 5, maxdf = 30, conv = c(10, 0.5), mccores = mc, verbose = 2, y
 #  set.seed(12345)
 #  t = deltime()
 #  cl2 = clustra(data, k = 2, maxdf = 30, conv = c(20,0.5), mccores=mc)
-#  deltimeT(t, paste("Seconds run time on", mc, "cores "))
+#  deltimeT(t, paste(" run time on", mc, "cores "))
 #  cat(paste("Number of iterations completed:",cl2$iterations))
 #  cat(paste("Number of individuals changing groups in last iteration:",cl2$changes))
 #  png(paste0(plot_path, "R_cl2_plot.png"), width = 480, height = 360)
@@ -144,7 +129,7 @@ clustra(data, k = 5, maxdf = 30, conv = c(10, 0.5), mccores = mc, verbose = 2, y
 #  knitr::include_graphics(paste0(plot_path, "R_cl5_silplot.png"))
 #  knitr::include_graphics(paste0(plot_path, "R_cl2_silplot.png"))
 #  knitr::include_graphics(paste0(plot_path, "R_cl10_silplot.png"))
-#  deltimeT(t, paste("Seconds silhouettes on", mc, "cores "))
+#  deltimeT(t, paste(" silhouettes on", mc, "cores "))
 
 ## ----silplot2, fig.width = 7, fig.height = 5, eval = chunk$silplot2-----------
 #  # Example running from the data step
@@ -159,7 +144,7 @@ clustra(data, k = 5, maxdf = 30, conv = c(10, 0.5), mccores = mc, verbose = 2, y
 #  set.seed(12345)
 #  ran = clustra_rand(data, k = seq(2, 10, 1), starts = "random", mccores = mc,
 #                     replicates = 10, conv=c(40,0.5), verbose = TRUE)
-#  deltimeT(t, paste("Seconds clustra_rand on", mc, "cores "))
+#  deltimeT(t, paste(" clustra_rand on", mc, "cores "))
 #  rand_plot(ran, name = paste0(plot_path, "R_randplot.pdf")) # save pdf version
 #  rand_plot(ran) # render png version
 
